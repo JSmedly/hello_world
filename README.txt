@@ -1,0 +1,7 @@
+This repository creates two docker containers. One runs an Orthanc server, the other runs a Jupyter Notebook. The two containers are connected on the same network and can listen to each other. For example, the Jupyter Notebook container can access the Orthanc server using the IP:
+    'http://orthanc:8042'
+Where 8042 is the http port exposed by the Orthanc container.
+
+The local ./jupter folder gets bind mounted into the Jupyter Notebook container, allowing for code to be shared and persisted locally and in the container. When opening a Jupyter Notebook from the link provided by the container, you will have to navigate through 'work/' to see the jupyter folders.
+
+For the Orthanc server to run correctly, the orthanc.json configuration file needs to be correctly set. Without this file, Orthanc uses the default configuration settings. Any settings not mentioned in the orthanc.json file also use their default values. Before running the compose file, the orthanc.json needs to have its DicomModalities and RegisteredUsers specified (see the commented out examples). Make sure to remember your RegisteredUsers username and password since this needs to be used to setup credentials between the Jupyter Notebook container and the Orthanc server (see test_connections.ipynb for an example of how to do this).

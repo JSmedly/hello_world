@@ -1,0 +1,29 @@
+version: "3.7"
+
+services:
+  orthanc:
+    image: "jodogne/orthanc"
+    command: /run/secrets/  # Path to the config file
+    ports:
+      - 8042:8042
+      - 4242:4242
+    secrets:
+      - orthanc.json
+    networks:
+      - palantir
+
+  jupyter:
+    build: .
+    ports:
+     - 8888:8888
+    networks:
+     - palantir
+    volumes:
+      - ./jupyter:/home/jovyan/work
+
+secrets:
+  orthanc.json: 
+    file: orthanc.json
+
+networks:
+  palantir:

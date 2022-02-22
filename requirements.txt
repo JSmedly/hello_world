@@ -1,0 +1,6 @@
+opencv-python
+python-dateutil
+pyorthanc
+tqdm
+pydicom
+ipykernel>=6.0.0
