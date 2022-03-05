@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd 
 import cv2
 import json
+import math
+import pickle
 # import paramiko
 from pyorthanc import Orthanc, RemoteModality
 
@@ -35,24 +37,50 @@ from pydicom.pixel_data_handlers.util import apply_color_lut
 ### MAIN FUNCTIONS FOR FILTERING ###
 ####################################
 
-def continue_function(fn, sequence, batch_size, checkpoint=0):
-    # Repeatedly attempts the function if it crashes and continues without losing information.
+
+def checkpointer(fn, sequence, batch_size,
+                dump_file='checkpoint_data_dump.json',
+                checkpoint=0):
+    # Repeatedly attempts to run the function on batch_size subsections of the sequence. If the function throws an execption, the outputs so far from the function will be saved along with the current state. The function will be stopped, then restarted from the last saved state. 
     sequence_length = len(sequence)
     n_iter = math.ceil(sequence_length/batch_size)
     output_array = []
+    # now_string = datetime.now().strftime("%Y_%m_%d-%H:%M")
+    dump_file = 'checkpoint_data_dump.json'
+
+    print("Running function: '{}' in checkpointer".format(fn.__name__))
+    print("Elements in sequence: {}".format(sequence_length))
+    print("Number of iterations required: {}".format(n_iter))
     while checkpoint < n_iter:
-        print("Starting at checkpoint {}".format(checkpoint))
-        for subgroup in itertools.islice(
-            get_subgroup(sequence, batch_size),
-            checkpoint, None):
-                try: 
-                    fn_output = fn(subgroup)
-                    # print(fn_output)
-                    output_array.extend(fn_output)
-                    checkpoint = checkpoint+1
-                except:
-                    print("System crashed at checkpoint {}".format(checkpoint))
-                    break
+        print("\nStarting at checkpoint {}".format(checkpoint))
+        
+        # Load checkpoint data if available
+        if checkpoint != 0:    
+            try:
+                with open(dump_file,'r') as f:
+                    output_array = json.load(f)
+                    print("Loading {} elements from {} file".format(
+                        len(output_array), dump_file))
+            except:
+                print("No data to preload")
+                pass
+        
+        # Iterate through sequence using batch-sizes. If an exception is 
+        # raised in 'fn', dump the data to the checkpoint_data_dump file.    
+        for subgroup in itertools.islice(get_subgroup(sequence, batch_size),
+                checkpoint, None):
+            try: 
+                fn_output = fn(subgroup)
+                # print(fn_output)
+                output_array.extend(fn_output)
+                checkpoint = checkpoint+1
+            except:
+                # print(Exception)
+                print("System crashed at checkpoint {}".format(checkpoint))
+                print("Saving data to {}".format(dump_file))
+                with open(dump_file,'w') as f:
+                    json.dump(output_array,f)
+                break
 
     return output_array
 
@@ -146,6 +174,7 @@ def studieslist2df(studiesList):
         studies_df = studieslist2df[all_studies]
     '''
     studiesList = list(itertools.chain(*studiesList))
+    studiesList = [x for x in studiesList if x != []] # Remove empty elements
     studiesList_DF = pd.DataFrame(studiesList)
     return studiesList_DF
 
@@ -264,6 +293,9 @@ def queryStudies(
                     'Error in queryStudies search! Attempt {}'.format(retries)
                 )
                 retries = retries+1
+        
+        if retries >= 20:
+            raise ConnectionError
 
     studiesDetails = list(itertools.chain(*studiesDetails))
     
@@ -281,6 +313,7 @@ def getSeriesfromStudyDF(orthanc,PACS,studiesDF):
             )
     except: 
         print('Error in getSeriesfromStudyAccNum search!')
+        raise ConnectionError
 
     return seriesDetails
 
